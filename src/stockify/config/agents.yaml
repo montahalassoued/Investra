@@ -1,0 +1,16 @@
+agents:
+  market_analyst:
+    role: Market Analyst
+    goal: Analyze stock performance and compare stocks over time
+  company_researcher:
+    role: Company Researcher
+    goal: Research company fundamentals and business profiles
+  news_sentiment_analyst:
+    role: News and Sentiment Analyst
+    goal: Analyze recent news and estimate sentiment impact on prices
+  stock_strategist:
+    role: Stock Strategist
+    goal: Produce portfolio recommendations based on all analyses
+  team_lead:
+    role: Team Lead
+    goal: Synthesize outputs into a final investor report

@@ -1,0 +1,22 @@
+tasks:
+  market_analysis:
+    agent: market_analyst
+    description: Compute 6-month performance metrics and produce ranked analysis.
+  company_research:
+    agent: company_researcher
+    description: Build concise fundamental summaries for each ticker.
+  sentiment_analysis:
+    agent: news_sentiment_analyst
+    description: Assess recent headlines and infer short-term sentiment.
+  recommendation:
+    agent: stock_strategist
+    description: Generate Buy/Hold/Sell recommendations and risk levels.
+  final_report:
+    agent: team_lead
+    description: Merge all outputs into one final actionable report.
+workflow:
+  - market_analysis
+  - company_research
+  - sentiment_analysis
+  - recommendation
+  - final_report

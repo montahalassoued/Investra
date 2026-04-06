@@ -543,9 +543,9 @@ def run_agents_in_parallel(symbols: list[str]) -> dict:
         }
 
 
-# ══════════════════════════════════════════════
-# 🕒  PUBLIC ENTRY POINT
-# ══════════════════════════════════════════════
+
+# PUBLIC ENTRY POINT
+
 
 def analyze_stocks_with_timing(symbols: list[str]) -> str:
     """
