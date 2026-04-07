@@ -3,13 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import logging
-from stockify.agents import (
+from Investra.agents import (
     get_market_analysis,
     get_company_info,
     get_all_company_analyses,
     get_news_and_sentiment,
 )
-from stockify.cache import clear_history, get_conversation_history
+from Investra.cache import clear_history, get_conversation_history
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
