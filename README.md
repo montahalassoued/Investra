@@ -1,4 +1,4 @@
-# Stockify - Multi-Agent Stock Analysis
+# Investra - Multi-Agent Stock Analysis
 
 Fast multi-agent stock analysis using CrewAI, Groq LLM, Redis cache, and FastAPI.
 
@@ -14,7 +14,7 @@ Fast multi-agent stock analysis using CrewAI, Groq LLM, Redis cache, and FastAPI
 ```bash
 # Install
 git clone <repo>
-cd stockify
+cd my_project
 python -m venv .venv
 source .venv/Scripts/activate  # Windows: .venv\Scripts\activate
 pip install -e .
@@ -32,13 +32,13 @@ docker run -d -p 6379:6379 redis:latest
 **CLI:**
 
 ```bash
-python -m stockify AAPL MSFT GOOGL
+python -m my_project AAPL MSFT GOOGL
 ```
 
 **Python:**
 
 ```python
-from stockify.crew import run_crew
+from my_project.crew import run_crew
 report = run_crew(['AAPL', 'MSFT'])
 ```
 
