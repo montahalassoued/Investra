@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 llama_llm = LLM(
-    model="groq/llama-2-70b-chat",
+    model="groq/llama-3.3-70b-versatile",
     api_key=groq_api_key,
 )
 
@@ -64,10 +64,7 @@ def compare_stocks(symbols: list[str]) -> pd.DataFrame:
                 if len(symbols) == 1:
                     close_prices = data["Close"].dropna()
                 else:
-                    if symbol not in data.columns.get_level_values(0):
-                        logger.warning(f"No data found for {symbol}")
-                        continue
-                    close_prices = data[symbol]["Close"].dropna()
+                    close_prices = data[(symbol, "Close")].dropna()
 
                 if close_prices.empty or len(close_prices) < 2:
                     logger.warning(f"Insufficient data for {symbol}")
