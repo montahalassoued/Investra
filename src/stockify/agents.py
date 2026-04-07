@@ -3,10 +3,11 @@ import logging
 import os
 import time
 from threading import Lock
-
-import pandas as pd
 import yfinance as yf
 from crewai import Agent, LLM
+import pandas as pd
+from .cache import get_cache, set_cache
+
 
 # Threading & Logging
 
@@ -51,11 +52,17 @@ market_analyst = Agent(
     verbose=True,
 )
 
-
 def compare_stocks(symbols: list[str]) -> pd.DataFrame:
-    """Download 6-month OHLCV data and compute performance metrics."""
     try:
-        logger.info(f"Downloading stock data for: {symbols}")
+        cache_key = f"stocks:{'-'.join(symbols)}"
+
+        cached = get_cache(cache_key)
+        if cached:
+            logger.info("[CACHE HIT] compare_stocks")
+            return pd.DataFrame(cached)
+
+        logger.info("[CACHE MISS] Fetching stock data")
+
         data = yf.download(symbols, period="6mo", group_by="ticker", auto_adjust=True)
         result = []
 
@@ -67,42 +74,45 @@ def compare_stocks(symbols: list[str]) -> pd.DataFrame:
                     close_prices = data[(symbol, "Close")].dropna()
 
                 if close_prices.empty or len(close_prices) < 2:
-                    logger.warning(f"Insufficient data for {symbol}")
                     continue
 
                 pct = close_prices.pct_change().dropna()
-                initial_change = pct.iloc[0]
-                total_change = (close_prices.iloc[-1] / close_prices.iloc[0] - 1)
 
-                result.append(
-                    {
-                        "Symbol": symbol,
-                        "Initial % Change": round(initial_change * 100, 2),
-                        "6-Month % Change": round(total_change * 100, 2),
-                        "Volatility (std %)": round(pct.std() * 100, 2),
-                        "Max Drawdown %": round(
-                            ((close_prices / close_prices.cummax()) - 1).min() * 100, 2
-                        ),
-                    }
-                )
-                logger.info(f"Data processed for {symbol}")
+                result.append({
+                    "Symbol": symbol,
+                    "Initial % Change": round(pct.iloc[0] * 100, 2),
+                    "6-Month % Change": round((close_prices.iloc[-1] / close_prices.iloc[0] - 1) * 100, 2),
+                    "Volatility (std %)": round(pct.std() * 100, 2),
+                    "Max Drawdown %": round(((close_prices / close_prices.cummax()) - 1).min() * 100, 2),
+                })
 
             except Exception as e:
-                logger.error(f"Error processing {symbol}: {e}")
+                logger.error(f"{symbol}: {e}")
 
-        if result:
-            return pd.DataFrame(result).set_index("Symbol")
-        return pd.DataFrame()
+        df = pd.DataFrame(result).set_index("Symbol")
+
+        # convert to dict before caching
+        set_cache(cache_key, df.to_dict(), ttl=3600)
+
+        return df
 
     except Exception as e:
-        logger.error(f"Error fetching market data: {e}")
+        logger.error(e)
         return pd.DataFrame()
 
-
 def get_market_analysis(symbols: list[str]) -> str:
-    """Run market analyst agent on historical performance data."""
+    """Run market analyst agent with Redis caching."""
     try:
-        logger.info(f"Starting market analysis for: {symbols}")
+        cache_key = f"market_analysis:{'-'.join(symbols)}"
+
+        #  check cache
+        cached = get_cache(cache_key)
+        if cached:
+            logger.info(f"[CACHE HIT] market_analysis {symbols}")
+            return cached
+
+        logger.info(f"[CACHE MISS] Starting market analysis for: {symbols}")
+
         performance_data = compare_stocks(symbols)
 
         if performance_data.empty:
@@ -123,12 +133,16 @@ def get_market_analysis(symbols: list[str]) -> str:
         )
 
         analysis = market_analyst.kickoff(prompt)
-        return _extract(analysis)
+        result = _extract(analysis)
+
+        #  cache result
+        set_cache(cache_key, result, ttl=3600)
+
+        return result
 
     except Exception as e:
         logger.error(f"Error in market analysis: {e}")
         return f"Error in market analysis: {e}"
-
 
 # COMPANY RESEARCHER
 
@@ -144,15 +158,21 @@ company_researcher = Agent(
 def get_company_info(symbol: str) -> dict:
     """Fetch key fundamentals from Yahoo Finance."""
     try:
+        cache_key = f"company:{symbol}"
+        #check cache
+        cached = get_cache(cache_key)
+        if cached:
+            return cached
+        #fetch from API(only if cache miss)
         logger.info(f"Fetching company info for {symbol}")
         stock = yf.Ticker(symbol)
         info = stock.get_info()
 
         summary = info.get("longBusinessSummary", "N/A")
-        if summary and summary != "N/A":
+        if summary and summary != " N/A":
             summary = summary[:600] + "..."
 
-        return {
+        result={
             "symbol": symbol,
             "name": info.get("longName", "N/A"),
             "sector": info.get("sector", "N/A"),
@@ -165,6 +185,12 @@ def get_company_info(symbol: str) -> dict:
             "52w_low": info.get("fiftyTwoWeekLow", "N/A"),
             "summary": summary,
         }
+        #store in cache 
+
+        set_cache(cache_key, result, ttl=86400)
+
+        return result
+
     except Exception as e:
         logger.error(f"Error fetching company info for {symbol}: {e}")
         return {k: "N/A" for k in [
@@ -224,15 +250,26 @@ news_sentiment_analyst = Agent(
 
 def get_recent_news(symbol: str, max_items: int = 10) -> list[dict]:
     """
-    Pull recent news items from Yahoo Finance for a given ticker.
-    Returns a list of {title, publisher, link, publish_time} dicts.
+    Pull recent news items from Yahoo Finance with Redis cache.
     """
     try:
+        cache_key = f"news:{symbol}:{max_items}"
+
+        # check cache
+        cached = get_cache(cache_key)
+        if cached:
+            logger.info(f"[CACHE HIT] news {symbol}")
+            return cached
+
+        logger.info(f"[CACHE MISS] Fetching news for {symbol}")
+
         ticker = yf.Ticker(symbol)
         raw_news = ticker.news or []
+
         items = []
         for article in raw_news[:max_items]:
             content = article.get("content", {})
+
             title = content.get("title", article.get("title", "N/A"))
             publisher = (
                 content.get("provider", {}).get("displayName")
@@ -243,11 +280,19 @@ def get_recent_news(symbol: str, max_items: int = 10) -> list[dict]:
                 content.get("canonicalUrl", {}).get("url")
                 or article.get("link", "N/A")
             )
-            items.append(
-                {"title": title, "publisher": publisher, "link": link, "publish_time": pub_time}
-            )
+
+            items.append({
+                "title": title,
+                "publisher": publisher,
+                "link": link,
+                "publish_time": pub_time
+            })
+
+        set_cache(cache_key, items, ttl=3600)
+
         logger.info(f"Fetched {len(items)} news items for {symbol}")
         return items
+
     except Exception as e:
         logger.error(f"Error fetching news for {symbol}: {e}")
         return []
@@ -264,15 +309,23 @@ def _format_headlines(symbol: str, news_items: list[dict]) -> str:
 
 def get_news_and_sentiment(symbols: list[str]) -> dict[str, str]:
     """
-    For each symbol, fetch headlines and ask the News & Sentiment Analyst
-    to score sentiment and predict short-term market mood.
-
-    Returns a dict: { symbol -> sentiment_report_str }
+    Cached sentiment analysis per symbol.
     """
     results: dict[str, str] = {}
 
     for symbol in symbols:
         try:
+            cache_key = f"sentiment:{symbol}"
+
+            #  check cache
+            cached = get_cache(cache_key)
+            if cached:
+                logger.info(f"[CACHE HIT] sentiment {symbol}")
+                results[symbol] = cached
+                continue
+
+            logger.info(f"[CACHE MISS] Sentiment analysis for {symbol}")
+
             news_items = get_recent_news(symbol)
             headlines_block = _format_headlines(symbol, news_items)
 
@@ -280,22 +333,23 @@ def get_news_and_sentiment(symbols: list[str]) -> dict[str, str]:
                 "You are a professional news and market-sentiment analyst.\n\n"
                 f"{headlines_block}\n\n"
                 "Based on these headlines, provide:\n"
-                "1. **Sentiment Score**: Overall sentiment — Bullish 🟢 / Neutral 🟡 / Bearish 🔴 — "
-                "with a confidence level (Low / Medium / High).\n"
-                "2. **Key Catalysts**: List the 2–3 most market-moving headlines and explain "
-                "why they matter for the stock price.\n"
-                "3. **Market Mood Forecast**: In 2–3 sentences, predict how news sentiment is "
-                "likely to influence this stock's price action over the next 1–4 weeks.\n"
-                "4. **Risk Flags**: Note any headlines that could create unexpected downside risk.\n\n"
-                "Be concise, specific, and data-grounded. Avoid vague statements."
+                "1. **Sentiment Score**: Bullish  / Neutral  / Bearish  with confidence.\n"
+                "2. **Key Catalysts**: 2–3 important headlines and why they matter.\n"
+                "3. **Market Mood Forecast**: 2–3 sentences.\n"
+                "4. **Risk Flags**.\n"
             )
 
             response = news_sentiment_analyst.kickoff(prompt)
-            results[symbol] = _extract(response)
+            result = _extract(response)
+
+            # cache sentiment (TTL: 1 hour or more)
+            set_cache(cache_key, result, ttl=3600)
+
+            results[symbol] = result
             logger.info(f"Sentiment analysis completed for {symbol}")
 
         except Exception as e:
-            logger.error(f"Error in news/sentiment analysis for {symbol}: {e}")
+            logger.error(f"Error in news/sentiment for {symbol}: {e}")
             results[symbol] = f"Error analysing news for {symbol}: {e}"
 
     return results
@@ -562,3 +616,5 @@ def analyze_stocks_with_timing(symbols: list[str]) -> str:
 
     except Exception as e:
         elapsed = round(time.time() - start, 2)
+        logger.error(f"Error in analyze_stocks_with_timing: {e}")
+        return f"Error during analysis: {e}\n\n---\n** Execution Time:** {elapsed}s"
