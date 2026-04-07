@@ -3,7 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 import logging
-from stockify.agents import get_market_analysis, get_company_info, get_company_analysis, get_news_and_sentiment
+from stockify.agents import (
+    get_market_analysis,
+    get_company_info,
+    get_all_company_analyses,
+    get_news_and_sentiment,
+)
+from stockify.cache import clear_history, get_conversation_history
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,6 +27,10 @@ app.add_middleware(
 
 class SymbolsRequest(BaseModel):
     symbols: List[str]
+
+
+class HistoryRequest(BaseModel):
+    symbols: List[str] | None = None
 
 
 @app.post("/analyze")
@@ -44,7 +54,7 @@ def company(symbol: str):
 def company_analysis(payload: SymbolsRequest):
     try:
         symbols = [s.upper().strip() for s in payload.symbols]
-        return get_company_analysis(symbols)
+        return get_all_company_analyses(symbols)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -66,3 +76,21 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Health check failed")
+
+
+@app.post("/history")
+def history(payload: HistoryRequest):
+    try:
+        symbols = [s.upper().strip() for s in payload.symbols] if payload.symbols else None
+        return get_conversation_history(symbols)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/history")
+def delete_history(payload: HistoryRequest):
+    try:
+        symbols = [s.upper().strip() for s in payload.symbols] if payload.symbols else None
+        return {"deleted": clear_history(symbols)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

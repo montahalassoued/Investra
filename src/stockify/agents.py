@@ -6,7 +6,7 @@ from threading import Lock
 import yfinance as yf
 from crewai import Agent, LLM
 import pandas as pd
-from .cache import get_cache, set_cache
+from .cache import get_cache, save_conversation, set_cache
 
 
 # Threading & Logging
@@ -612,6 +612,11 @@ def analyze_stocks_with_timing(symbols: list[str]) -> str:
     try:
         report = get_final_investment_report(symbols)
         elapsed = round(time.time() - start, 2)
+        save_conversation(
+            symbols=symbols,
+            analysis_type="final_report",
+            result={"report": report, "execution_time_seconds": elapsed},
+        )
         logger.info("=" * 60)
         logger.info(f"Analysis completed in {elapsed}s")
         return f"{report}\n\n---\n**⏱ Execution Time:** {elapsed}s (parallel processing)"
@@ -619,4 +624,9 @@ def analyze_stocks_with_timing(symbols: list[str]) -> str:
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"Error in analyze_stocks_with_timing: {e}")
+        save_conversation(
+            symbols=symbols,
+            analysis_type="final_report_failed",
+            result={"error": str(e), "execution_time_seconds": elapsed},
+        )
         return f"Error during analysis: {e}\n\n---\n** Execution Time:** {elapsed}s"
