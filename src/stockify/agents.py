@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 # LLM
 
-google_api_key = os.getenv("GOOGLE_API_KEY")
+groq_api_key = os.getenv("GROQ_API_KEY")
 
-gemini_llm = LLM(
-    model="gemini/gemini-2.0-flash",
-    api_key=google_api_key,
+llama_llm = LLM(
+    model="groq/llama-2-70b-chat",
+    api_key=groq_api_key,
 )
 
 # Helper — safe agent content extraction
@@ -45,7 +45,7 @@ def _extract(response) -> str:
 
 market_analyst = Agent(
     role="Market Analyst",
-    llm=gemini_llm,
+    llm=llama_llm,
     goal="Analyze stock performance and compare stocks over time",
     backstory="Expert in financial markets and quantitative analysis",
     verbose=True,
@@ -125,7 +125,7 @@ def get_market_analysis(symbols: list[str]) -> str:
             "Keep your response concise and data-driven."
         )
 
-        analysis = market_analyst.run(prompt)
+        analysis = market_analyst.kickoff(prompt)
         return _extract(analysis)
 
     except Exception as e:
@@ -137,7 +137,7 @@ def get_market_analysis(symbols: list[str]) -> str:
 
 company_researcher = Agent(
     role="Company Researcher",
-    llm=gemini_llm,
+    llm=llama_llm,
     goal="Research company fundamentals and business profiles",
     backstory="Financial researcher specialised in company profiling and fundamental analysis",
     verbose=True,
@@ -195,7 +195,7 @@ def get_all_company_analyses(symbols: list[str]) -> dict[str, str]:
                 f"Description:   {info['summary']}\n\n"
                 "Provide a 3–4 sentence summary covering: business model, financial health, competitive positioning."
             )
-            result = company_researcher.run(prompt)
+            result = company_researcher.kickoff(prompt)
             analyses[symbol] = _extract(result)
         except Exception as e:
             logger.error(f"Error in company analysis for {symbol}: {e}")
@@ -209,7 +209,7 @@ def get_all_company_analyses(symbols: list[str]) -> dict[str, str]:
 
 news_sentiment_analyst = Agent(
     role="News & Sentiment Analyst",
-    llm=gemini_llm,
+    llm=llama_llm,
     goal=(
         "Retrieve recent news headlines for each stock, score market sentiment "
         "(Bullish / Neutral / Bearish), identify key catalysts, and forecast "
@@ -293,7 +293,7 @@ def get_news_and_sentiment(symbols: list[str]) -> dict[str, str]:
                 "Be concise, specific, and data-grounded. Avoid vague statements."
             )
 
-            response = news_sentiment_analyst.run(prompt)
+            response = news_sentiment_analyst.kickoff(prompt)
             results[symbol] = _extract(response)
             logger.info(f"Sentiment analysis completed for {symbol}")
 
@@ -326,7 +326,7 @@ def get_aggregated_market_sentiment(symbols: list[str], individual_sentiments: d
             "Keep it strategic and actionable."
         )
 
-        response = news_sentiment_analyst.run(prompt)
+        response = news_sentiment_analyst.kickoff(prompt)
         return _extract(response)
 
     except Exception as e:
@@ -340,7 +340,7 @@ def get_aggregated_market_sentiment(symbols: list[str], individual_sentiments: d
 
 stock_strategist = Agent(
     role="Stock Strategist",
-    llm=gemini_llm,
+    llm=llama_llm,
     goal="Provide data-driven investment recommendations based on multi-source analysis",
     backstory="Senior portfolio manager with expertise in blending quantitative data, "
               "fundamentals, and sentiment to make investment decisions",
@@ -391,7 +391,7 @@ def get_stock_recommendations(
             "Keep the response concise, structured, and actionable."
         )
 
-        response = stock_strategist.run(prompt)
+        response = stock_strategist.kickoff(prompt)
         result = _extract(response)
         logger.info("Stock recommendations completed")
         return result
@@ -407,7 +407,7 @@ def get_stock_recommendations(
 
 team_lead = Agent(
     role="Team Lead",
-    llm=gemini_llm,
+    llm=llama_llm,
     goal="Aggregate all analyses into a single, coherent, actionable investment report",
     backstory=(
         "Chief Investment Officer who synthesises quantitative data, fundamental research, "
@@ -465,7 +465,7 @@ def get_final_investment_report(symbols: list[str]) -> str:
             f"This report is for a sophisticated retail investor."
         )
 
-        final = team_lead.run(synthesis_prompt)
+        final = team_lead.kickoff(synthesis_prompt)
         logger.info("Final report generation completed")
         return _extract(final)
 
@@ -565,5 +565,3 @@ def analyze_stocks_with_timing(symbols: list[str]) -> str:
 
     except Exception as e:
         elapsed = round(time.time() - start, 2)
-        logger.error(f"Analysis failed after {elapsed}s: {e}")
-        return f"Analysis failed: {e}"
