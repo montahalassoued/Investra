@@ -23,11 +23,13 @@ logger = logging.getLogger(__name__)
 
 # LLM
 
-groq_api_key = os.getenv("GROQ_API_KEY")
+if not os.getenv("GROQ_API_KEY"):
+    raise RuntimeError("GROQ_API_KEY is missing. Please set it in environment variables.")
+
 
 llama_llm = LLM(
     model="groq/llama-3.3-70b-versatile",
-    api_key=groq_api_key,
+    api_key=os.getenv("GROQ_API_KEY"),
 )
 
 # Helper — safe agent content extraction
