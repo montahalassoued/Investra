@@ -4,6 +4,10 @@ Minimal Next.js chat frontend for the Stockify AI investment assistant.
 
 This app connects to the FastAPI backend and sends user messages to the `/chat` endpoint with a persistent `session_id` for multi-turn conversation context.
 
+## Screenshot
+
+<img src="/images/Capture%20d%E2%80%99%C3%A9cran%202026-04-14%20225611.png" alt="Stockify chat screenshot" />
+
 ## Tech Stack
 
 - Next.js 16
