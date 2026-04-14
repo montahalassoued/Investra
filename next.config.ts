@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
   reactCompiler: true,
+  turbopack: {
+    root: process.cwd(),
+  },
   logging: {
     fetches: {
       fullUrl: false,
