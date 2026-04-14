@@ -54,6 +54,19 @@ class ChatRequest(BaseModel):
 CHAT_HISTORY_LIMIT = int(os.getenv("CHAT_HISTORY_LIMIT", "10"))
 CHAT_HISTORY_TTL = int(os.getenv("CHAT_HISTORY_TTL", "3600"))
 INVESTMENT_KEYWORDS = ("invest", "buy", "stock", "portfolio")
+NEWS_KEYWORDS = (
+    "news",
+    "headline",
+    "headlines",
+    "happening",
+    "update",
+    "updates",
+    "world",
+    "today",
+    "latest",
+    "breaking",
+)
+DEFAULT_NEWS_SYMBOLS = ["SPY", "QQQ", "DIA", "IWM", "VT"]
 
 _memory_lock = Lock()
 _in_memory_chat_store: dict[str, list[dict[str, str]]] = {}
@@ -117,6 +130,11 @@ def _is_investment_intent(message: str) -> bool:
     return any(keyword in lowered for keyword in INVESTMENT_KEYWORDS)
 
 
+def _is_news_intent(message: str) -> bool:
+    lowered = message.lower()
+    return any(keyword in lowered for keyword in NEWS_KEYWORDS)
+
+
 def _has_decision_context(message: str, history: list[dict[str, str]]) -> bool:
     combined = " ".join(
         [item.get("content", "") for item in history if item.get("role") == "user"] + [message]
@@ -172,6 +190,21 @@ def _extract_symbols(message: str) -> list[str]:
     return deduped[:5]
 
 
+def _format_news_sentiment_response(news_by_symbol: dict[str, str]) -> str:
+    if not news_by_symbol:
+        return "I could not find recent market news right now. Please try again in a moment."
+
+    lines = ["Here are the latest market news and sentiment updates:"]
+    for symbol, summary in news_by_symbol.items():
+        clean_summary = summary.strip() if isinstance(summary, str) else "No summary available."
+        lines.append(f"\n### {symbol}\n{clean_summary}")
+
+    lines.append(
+        "\nIf you want, I can narrow this down to a specific company or sector."
+    )
+    return "\n".join(lines)
+
+
 def _build_conversation_prompt(history: list[dict[str, str]], user_message: str):
     messages = [
         {
@@ -213,6 +246,14 @@ def _answer_with_conversation_llm(history: list[dict[str, str]], user_message: s
 
 
 def _handle_chat_message(message: str, history: list[dict[str, str]]) -> str:
+    if _is_news_intent(message):
+        symbols = _extract_symbols(message)
+        if not symbols:
+            symbols = DEFAULT_NEWS_SYMBOLS
+
+        news_result = get_news_and_sentiment(symbols)
+        return _format_news_sentiment_response(news_result)
+
     if _is_investment_intent(message):
         symbols = _extract_symbols(message)
         if not symbols:
