@@ -13,8 +13,24 @@ type ChatItem = {
 
 type ChatStatus = "idle" | "thinking" | "streaming";
 
-function nextId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+function getOrCreateSessionId(): string {
+  const storageKey = "investra-session-id";
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing && existing.trim().length > 0) {
+    return existing;
+  }
+
+  if (
+    typeof crypto === "undefined" ||
+    typeof crypto.randomUUID !== "function"
+  ) {
+    throw new Error("crypto.randomUUID is required to create a chat session");
+  }
+
+  const generated = crypto.randomUUID();
+
+  window.localStorage.setItem(storageKey, generated);
+  return generated;
 }
 
 function chunkResponse(text: string): string[] {
@@ -40,6 +56,7 @@ export function InvestraChat() {
   const [status, setStatus] = useState<ChatStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef<string>("");
 
   const canSend = useMemo(
     () => input.trim().length > 0 && status === "idle",
@@ -67,7 +84,7 @@ export function InvestraChat() {
     setStatus("thinking");
 
     const userMessage: ChatItem = {
-      id: nextId(),
+      id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
     };
@@ -76,9 +93,13 @@ export function InvestraChat() {
     scrollToBottom();
 
     try {
-      const backendResponse = await sendMessage(trimmed);
+      if (!sessionIdRef.current) {
+        sessionIdRef.current = getOrCreateSessionId();
+      }
 
-      const assistantId = nextId();
+      const backendResponse = await sendMessage(trimmed, sessionIdRef.current);
+
+      const assistantId = crypto.randomUUID();
       setMessages((prev) => [
         ...prev,
         {

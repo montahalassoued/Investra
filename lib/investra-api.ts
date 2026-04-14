@@ -7,12 +7,7 @@ type InvestraResponse = {
 };
 
 function getInvestraBaseUrl(): string {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_API_URL ??
-    process.env.NEXT_PUBLIC_FASTAPI_URL ??
-    process.env.FASTAPI_URL ??
-    process.env.INVESTRA_API_URL ??
-    process.env.NEXT_PUBLIC_INVESTRA_API_URL;
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
 
   return (configuredUrl?.trim() || DEFAULT_INVESTRA_BASE_URL).replace(
     /\/$/,
@@ -20,9 +15,12 @@ function getInvestraBaseUrl(): string {
   );
 }
 
-export async function sendMessage(message: string): Promise<string> {
+export async function sendMessage(
+  message: string,
+  sessionId: string,
+): Promise<string> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 120000);
 
   try {
     const response = await fetch(`${getInvestraBaseUrl()}/chat`, {
@@ -30,7 +28,10 @@ export async function sendMessage(message: string): Promise<string> {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        session_id: sessionId,
+      }),
       cache: "no-store",
       signal: controller.signal,
     });
@@ -49,6 +50,14 @@ export async function sendMessage(message: string): Promise<string> {
     }
 
     return data.response;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        "Investra backend request timed out while generating the analysis",
+      );
+    }
+
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
