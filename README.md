@@ -9,6 +9,22 @@ Fast multi-agent stock analysis using CrewAI, Groq LLM, Redis cache, and FastAPI
 - Redis caching with 30-day conversation history
 - REST API + CLI + Python module
 
+## Architecture
+
+The backend follows a simple request flow:
+
+1. Client sends a request to FastAPI through endpoints such as `/analyze`, `/company-analysis`, or `/chat`.
+2. `app.py` handles routing, validation, and CORS, then delegates work to the Investra orchestration layer.
+3. CrewAI runs the analysis agents in parallel and aggregates their output.
+4. The agents rely on these data sources and services:
+   - `yfinance` for market data
+   - `BeautifulSoup` for web scraping
+   - `TextBlob` / `NLTK` for NLP and sentiment analysis
+   - Groq LLM for reasoning and synthesis
+5. Redis stores cached results and 30-day conversation history to reduce repeated work.
+
+![Investra architecture](architecture/investra_architecture.svg)
+
 ## Setup
 
 ```bash
@@ -65,7 +81,7 @@ uvicorn app:app --reload
 
 - Python 3.10+
 - Redis
-- Groq API key 
+- Groq API key
 
 ## License
 
