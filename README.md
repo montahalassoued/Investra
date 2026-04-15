@@ -1,4 +1,4 @@
-# Stockify Frontend (Investra Chat)
+# Frontend (Investra Chat)
 
 Minimal Next.js chat frontend for the Stockify AI investment assistant.
 
