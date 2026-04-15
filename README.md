@@ -1,6 +1,6 @@
 # Frontend (Investra Chat)
 
-Minimal Next.js chat frontend for the Stockify AI investment assistant.
+Minimal Next.js chat frontend for the investra AI investment assistant.
 
 This app connects to the FastAPI backend and sends user messages to the `/chat` endpoint with a persistent `session_id` for multi-turn conversation context.
 
